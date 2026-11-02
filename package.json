@@ -1,0 +1,35 @@
+{
+  "name": "incident0-lite",
+  "version": "1.0.0",
+  "description": "IncidentZero Lite: SRE Telemetry & Root-Cause Correlation Engine (DBMS Capstone)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --test test/*.test.mjs",
+    "db:setup": "cat db/01_schema.sql db/02_programmability.sql db/03_seeds.sql | docker exec -i incidentzero_db psql -U postgres -d incidentzero_lite"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hagemaruwu/incident0-lite.git"
+  },
+  "author": "Aditya Raj & Alakh Gupta",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "next": "^16.4.3",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.2",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^7.0.2"
+  }
+}
