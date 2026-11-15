@@ -13,6 +13,7 @@ export default function WarRoomDashboard() {
   const [stackTrace, setStackTrace] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
+  const [formError, setFormError] = useState('');
 
   async function loadData() {
     const res = await fetch('/api/incidents');
@@ -37,14 +38,25 @@ export default function WarRoomDashboard() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    await fetch('/api/incidents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, severity, service_id: serviceId, assigned_to: 1, message, stack_trace: stackTrace }),
-    });
-    setTitle(''); setMessage(''); setStackTrace(''); setMatches([]);
-    setSubmitting(false);
-    await loadData();
+    setFormError('');
+    try {
+      const res = await fetch('/api/incidents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, severity, service_id: serviceId, assigned_to: 1, message, stack_trace: stackTrace }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setFormError(errData.error || 'Failed to declare incident');
+        return;
+      }
+      setTitle(''); setMessage(''); setStackTrace(''); setMatches([]);
+      await loadData();
+    } catch {
+      setFormError('Network error declaring incident');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const list = selectedSeverity === 'ALL' ? incidents : incidents.filter(i => i.severity === selectedSeverity);
@@ -72,6 +84,7 @@ export default function WarRoomDashboard() {
         <div className="lg:col-span-5 space-y-4">
           <form onSubmit={handleSubmit} className="p-4 rounded-lg bg-[#121215] border border-zinc-800 space-y-3">
             <div className="font-bold text-zinc-200 font-mono">DECLARE NEW INCIDENT</div>
+            {formError && <div className="text-red-400 font-mono text-[11px] p-2 rounded bg-red-950/40 border border-red-900/50">{formError}</div>}
             <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Incident Title"
               className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 outline-none" />
             <div className="grid grid-cols-2 gap-2">
