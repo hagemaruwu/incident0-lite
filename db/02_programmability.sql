@@ -115,10 +115,10 @@ BEGIN
     NEW.updated_at := NOW();
 
     IF (NEW.status IN ('RESOLVED', 'CLOSED')) THEN
-        IF (OLD.resolved_at IS NULL) THEN
+        IF (NEW.resolved_at IS NULL) THEN
             NEW.resolved_at := NOW();
         END IF;
-    ELSIF (NEW.status IN ('OPEN', 'INVESTIGATING')) THEN
+    ELSE
         NEW.resolved_at := NULL;
     END IF;
 

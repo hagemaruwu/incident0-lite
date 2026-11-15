@@ -105,3 +105,7 @@ SELECT setval(
     COALESCE((SELECT MAX(incident_id) FROM incidents), 1),
     true
 );
+
+-- 7. SYNCHRONIZE USER / SERVICE SEQUENCES (seed rows were inserted with explicit ids)
+SELECT setval(pg_get_serial_sequence('users','user_id'),       (SELECT MAX(user_id)    FROM users));
+SELECT setval(pg_get_serial_sequence('services','service_id'), (SELECT MAX(service_id) FROM services));
