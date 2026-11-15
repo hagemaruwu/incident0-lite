@@ -108,6 +108,20 @@ test('IncidentZero Lite: Smoke Test Suite', async (t) => {
       await client.query('ROLLBACK TO SAVEPOINT sp_del_svc');
     });
 
+    // 9. Verify audit trigger records the acting user, not the assignee
+    await t.test('status history records acting user from app.current_user_id', async () => {
+      // incident 4 is assigned to user 1; user 2 performs the change
+      await client.query(`SELECT set_config('app.current_user_id', '2', true)`);
+      await client.query(`UPDATE incidents SET status = 'INVESTIGATING' WHERE incident_id = 4`);
+      const histRes = await client.query(`
+        SELECT changed_by FROM incident_status_history
+        WHERE incident_id = 4 AND new_status = 'INVESTIGATING'
+        ORDER BY history_id DESC LIMIT 1
+      `);
+      assert.equal(histRes.rows[0].changed_by, 2, 'changed_by must be the acting user (2), not the assignee (1)');
+      await client.query(`SELECT set_config('app.current_user_id', '', true)`);
+    });
+
   } finally {
     await client.query('ROLLBACK');
     client.release();

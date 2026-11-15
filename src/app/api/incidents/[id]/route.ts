@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withActor } from '@/lib/db';
+import { dbErrorResponse } from '@/lib/dbErrors';
 import { requireRole } from '@/lib/auth';
 
 const VALID_STATUSES = ['OPEN', 'INVESTIGATING', 'RESOLVED', 'CLOSED'];
@@ -33,12 +34,15 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
-    const res = await query(
-      `UPDATE incidents 
-       SET status = $1 
-       WHERE incident_id = $2 
-       RETURNING incident_id, incident_number, status, resolved_at`,
-      [status, incidentId]
+    // Explicit transaction carrying the acting user so the audit trigger logs the real actor
+    const res = await withActor(auth.user_id, (q) =>
+      q(
+        `UPDATE incidents
+         SET status = $1
+         WHERE incident_id = $2
+         RETURNING incident_id, incident_number, status, resolved_at`,
+        [status, incidentId]
+      )
     );
 
     if (res.rows.length === 0) {
@@ -47,6 +51,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true, incident: res.rows[0] });
   } catch (error: any) {
+    const handled = dbErrorResponse(error);
+    if (handled) return handled;
     console.error('[incidents/[id]] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, withActor } from '@/lib/db';
+import { dbErrorResponse } from '@/lib/dbErrors';
 import { generateEmbedding } from '@/lib/embedder';
 import { requireRole } from '@/lib/auth';
 
@@ -49,12 +50,16 @@ export async function POST(req: NextRequest) {
     const assigned_to = auth.user_id;
 
     const embedding = generateEmbedding(`${message} ${stack_trace}`);
-    const res = await query(`SELECT * FROM sp_create_incident($1, $2, $3, $4, $5, $6, $7, $8::vector);`, [
-      title, description, severity, Number(service_id), Number(assigned_to), message, stack_trace, JSON.stringify(embedding)
-    ]);
+    const res = await withActor(auth.user_id, (q) =>
+      q(`SELECT * FROM sp_create_incident($1, $2, $3, $4, $5, $6, $7, $8::vector);`, [
+        title, description, severity, Number(service_id), Number(assigned_to), message, stack_trace, JSON.stringify(embedding)
+      ])
+    );
 
     return NextResponse.json({ success: true, created: res.rows[0] }, { status: 201 });
   } catch (error: any) {
+    const handled = dbErrorResponse(error);
+    if (handled) return handled;
     console.error('Incidents POST route error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -133,18 +133,25 @@ FOR EACH ROW EXECUTE FUNCTION fn_trg_incident_timestamps();
 
 -- ----------------------------------------------------------------------------
 -- 5. TRIGGER B (AFTER): Audit Trail State History Logging
+-- changed_by = the acting user, passed by the API as the transaction-local
+-- setting app.current_user_id (set_config(..., true)). Falls back to the
+-- assignee when the change is made directly in psql without that setting.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_trg_incident_status_history()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_actor INT;
 BEGIN
+    v_actor := COALESCE(NULLIF(current_setting('app.current_user_id', true), '')::INT, NEW.assigned_to);
+
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO incident_status_history (incident_id, previous_status, new_status, changed_by, changed_at)
-        VALUES (NEW.incident_id, NULL, NEW.status, NEW.assigned_to, NOW());
+        VALUES (NEW.incident_id, NULL, NEW.status, v_actor, NOW());
     ELSIF (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status) THEN
         INSERT INTO incident_status_history (incident_id, previous_status, new_status, changed_by, changed_at)
-        VALUES (NEW.incident_id, OLD.status, NEW.status, NEW.assigned_to, NOW());
+        VALUES (NEW.incident_id, OLD.status, NEW.status, v_actor, NOW());
     END IF;
 
     RETURN NEW;
