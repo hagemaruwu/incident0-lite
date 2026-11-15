@@ -48,6 +48,7 @@ ORDER BY incident_count DESC;
 ```
 
 **Execution Characteristic:** HashAggregate with filter condition evaluated post-aggregation, identifying outage-prone services.
+*Note: The HAVING clause is illustrative: it is there to demonstrate the syntax, and with the seed data every service passes it.*
 
 ---
 
