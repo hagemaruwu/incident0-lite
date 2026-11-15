@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'IncidentZero Lite - SRE Incident Engine',
-  description: 'DBMS Experiential Learning Level 3 Capstone Project',
+  description: 'SRE incident management with vector similarity search',
 };
 
 export default function RootLayout({
@@ -22,8 +22,6 @@ export default function RootLayout({
               <Link href="/" className="font-mono font-bold text-sm tracking-wider text-zinc-100 hover:text-white">
                 INCIDENTZERO <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-normal">LITE</span>
               </Link>
-              <span className="text-zinc-600">|</span>
-              <span className="text-xs text-zinc-400 hidden sm:inline">DBMS Level 3 Capstone (PES University)</span>
             </div>
             <nav className="flex items-center gap-3 text-xs font-mono">
               <Link
