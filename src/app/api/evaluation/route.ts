@@ -35,8 +35,10 @@ const QUERIES: Record<string, { title: string; rubric: string; sql: string; para
 export async function GET(req: NextRequest) {
   try {
     const key = req.nextUrl.searchParams.get('key') || 'MULTI_JOIN';
+    if (!Object.prototype.hasOwnProperty.call(QUERIES, key)) {
+      return NextResponse.json({ error: 'Unknown query' }, { status: 400 });
+    }
     const spec = QUERIES[key];
-    if (!spec) return NextResponse.json({ error: 'Unknown query' }, { status: 400 });
 
     const params = key === 'VECTOR_SIMILARITY' ? [JSON.stringify(generateEmbedding('ResourcePool connection timeout'))] : [];
     const res = await query(spec.sql, params);
