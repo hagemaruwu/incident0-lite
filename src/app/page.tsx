@@ -60,6 +60,7 @@ export default function WarRoomDashboard() {
   }
 
   const list = selectedSeverity === 'ALL' ? incidents : incidents.filter(i => i.severity === selectedSeverity);
+  const qualifyingMatches = matches.filter(m => m.similarity >= 0.5);
 
   return (
     <div className="space-y-6 text-xs">
@@ -109,8 +110,10 @@ export default function WarRoomDashboard() {
             <div className="font-mono text-[11px] text-zinc-400 font-bold">SIMILAR INCIDENTS & ROOT CAUSES</div>
             {matches.length === 0 ? (
               <p className="text-zinc-600 text-[11px] italic">Type error telemetry above to trigger vector cosine similarity matching.</p>
+            ) : qualifyingMatches.length === 0 ? (
+              <p className="text-zinc-500 text-[11px] italic">No similar past incidents</p>
             ) : (
-              matches.map(m => (
+              qualifyingMatches.map(m => (
                 <div key={m.incident_id} className="p-2 rounded bg-zinc-900 border border-zinc-800 text-[11px]">
                   <div className="flex justify-between font-mono">
                     <span className="text-blue-400 font-bold">{m.incident_number}</span>
