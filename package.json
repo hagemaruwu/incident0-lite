@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node --test test/*.test.mjs",
-    "db:setup": "cat db/01_schema.sql db/02_programmability.sql db/03_seeds.sql | docker exec -i incidentzero_lite_db psql -U postgres -d incidentzero_lite"
+    "db:setup": "cat db/01_schema.sql db/02_programmability.sql db/03_seeds.sql db/04_auth.sql | docker exec -i incidentzero_lite_db psql -U postgres -d incidentzero_lite"
   },
   "repository": {
     "type": "git",
