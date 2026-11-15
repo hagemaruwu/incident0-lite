@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ incidents: res.rows, service_summaries: viewRes.rows });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Incidents GET route error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, created: res.rows[0] }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Incidents POST route error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

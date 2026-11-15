@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       rows: res.rows, rowCount: res.rowCount, duration_ms: res.duration
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Evaluation route error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
