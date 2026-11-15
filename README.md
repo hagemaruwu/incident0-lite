@@ -98,3 +98,55 @@ npm run dev
 
 - **`/` (Live SRE War Room)**: Executive dashboard with KPI counters, inline incident declaration studio, live debounced vector search against past post-mortems, and active incident queue with severity filters.
 - **`/evaluation` (Professor Evaluation Lab)**: Interactive rubric verification suite executing 5 complex database queries (Multi-Table JOINs, GROUP BY with HAVING, Nested Subqueries, Window Functions with `DENSE_RANK`, and pgvector cosine search) with real-time execution plans.
+
+
+---
+
+## 6. Authentication and Roles
+
+IncidentZero Lite implements server-side Role-Based Access Control (RBAC) with cryptographic session tokens (HMAC-SHA256, 8-hour expiry). User passwords are encrypted with `pgcrypto` bcrypt hashes (`$2a$`).
+
+### Demo Accounts
+
+All demo accounts share the demonstration password: `Demo@123`
+
+| Name | Role | Email | Permissions |
+|---|---|---|---|
+| **Aditya Raj** | `ADMIN` | `aditya.raj@incidentzero.internal` | Full access: declare incidents, update status, delete incidents |
+| **Alakh Gupta** | `ENGINEER` | `alakh.gupta@incidentzero.internal` | Operational access: declare incidents, update status |
+| **Priya Sharma** | `ENGINEER` | `priya.sharma@incidentzero.internal` | Operational access: declare incidents, update status |
+| **Security Auditor** | `VIEWER` | `auditor@incidentzero.internal` | Read-only audit access: view War Room, similarity search, run Analytics |
+
+### Applying Auth Migration on an Existing Database
+
+To apply the auth schema migration (`pgcrypto`, `users.password_hash`, and foreign-key indexes) on an existing PostgreSQL container:
+
+```bash
+docker exec -i incidentzero_lite_db psql -U postgres -d incidentzero_lite < db/04_auth.sql
+```
+
+*(Note: If running against a local container named `incidentzero_db`, substitute the container name accordingly.)*
+
+### Environment Configuration (`.env.local`)
+
+Copy `.env.example` to `.env.local` and configure:
+
+```bash
+DATABASE_URL=postgresql://postgres:password123@localhost:5432/incidentzero_lite
+SESSION_SECRET=<random-hex-string-at-least-32-chars>
+```
+
+To generate a random session secret:
+```bash
+openssl rand -hex 32
+```
+
+### Running Automated Test Suite
+
+To run the automated smoke and database constraint test suite:
+
+```bash
+npm test
+```
+
+For the complete execution log across schema constraints, authentication, RBAC matrix, and trigger audits, see [`docs/TESTING.md`](docs/TESTING.md).
