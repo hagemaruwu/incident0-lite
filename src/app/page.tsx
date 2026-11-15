@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 
 export default function WarRoomDashboard() {
+  const [user, setUser] = useState<{ user_id: number; role: string; full_name?: string } | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [incidents, setIncidents] = useState<any[]>([]);
   const [serviceSummaries, setServiceSummaries] = useState<any[]>([]);
   const [selectedSeverity, setSelectedSeverity] = useState('ALL');
@@ -14,15 +16,40 @@ export default function WarRoomDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
   const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   async function loadData() {
     const res = await fetch('/api/incidents');
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
     const data = await res.json();
     if (data.incidents) setIncidents(data.incidents);
     if (data.service_summaries) setServiceSummaries(data.service_summaries);
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    async function checkAuthAndLoad() {
+      try {
+        const meRes = await fetch('/api/auth/me');
+        if (meRes.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        const me = await meRes.json();
+        setUser(me);
+        await loadData();
+      } catch {
+        await loadData();
+      } finally {
+        setAuthChecking(false);
+      }
+    }
+    checkAuthAndLoad();
+  }, []);
 
   // Debounced Vector Similarity Search
   useEffect(() => {
@@ -43,7 +70,7 @@ export default function WarRoomDashboard() {
       const res = await fetch('/api/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, severity, service_id: serviceId, assigned_to: 1, message, stack_trace: stackTrace }),
+        body: JSON.stringify({ title, severity, service_id: serviceId, message, stack_trace: stackTrace }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -59,8 +86,64 @@ export default function WarRoomDashboard() {
     }
   }
 
+  async function handleStatusChange(incidentId: number, newStatus: string) {
+    setStatusUpdatingId(incidentId);
+    setActionError('');
+    try {
+      const res = await fetch(`/api/incidents/${incidentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setActionError(errData.error || 'Failed to update status');
+        return;
+      }
+      await loadData();
+    } catch {
+      setActionError('Network error updating status');
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  }
+
+  async function handleDelete(incidentId: number, incidentNumber: string) {
+    if (!window.confirm(`Are you sure you want to delete incident ${incidentNumber}?`)) {
+      return;
+    }
+    setDeletingId(incidentId);
+    setActionError('');
+    try {
+      const res = await fetch(`/api/incidents/${incidentId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setActionError(errData.error || 'Failed to delete incident');
+        return;
+      }
+      await loadData();
+    } catch {
+      setActionError('Network error deleting incident');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  if (authChecking) {
+    return (
+      <div className="py-24 text-center font-mono text-zinc-500 text-xs">
+        Checking authentication...
+      </div>
+    );
+  }
+
   const list = selectedSeverity === 'ALL' ? incidents : incidents.filter(i => i.severity === selectedSeverity);
   const qualifyingMatches = matches.filter(m => m.similarity >= 0.5);
+  const canDeclare = user?.role === 'ADMIN' || user?.role === 'ENGINEER';
+  const canUpdateStatus = user?.role === 'ADMIN' || user?.role === 'ENGINEER';
+  const canDelete = user?.role === 'ADMIN';
 
   return (
     <div className="space-y-6 text-xs">
@@ -81,29 +164,38 @@ export default function WarRoomDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Declare Incident Form & Vector Match */}
+        {/* Left: Declare Incident Form or Read-Only Banner & Vector Match */}
         <div className="lg:col-span-5 space-y-4">
-          <form onSubmit={handleSubmit} className="p-4 rounded-lg bg-[#121215] border border-zinc-800 space-y-3">
-            <div className="font-bold text-zinc-200 font-mono">DECLARE NEW INCIDENT</div>
-            {formError && <div className="text-red-400 font-mono text-[11px] p-2 rounded bg-red-950/40 border border-red-900/50">{formError}</div>}
-            <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Incident Title"
-              className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 outline-none" />
-            <div className="grid grid-cols-2 gap-2">
-              <select value={severity} onChange={e => setSeverity(e.target.value)} className="bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200">
-                <option value="P1">P1 (Outage)</option><option value="P2">P2 (Degraded)</option><option value="P3">P3 (Minor)</option>
-              </select>
-              <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200">
-                <option value="1">auth-service</option><option value="2">payment-gateway</option><option value="3">order-processor</option>
-              </select>
+          {canDeclare ? (
+            <form onSubmit={handleSubmit} className="p-4 rounded-lg bg-[#121215] border border-zinc-800 space-y-3">
+              <div className="font-bold text-zinc-200 font-mono">DECLARE NEW INCIDENT</div>
+              {formError && <div className="text-red-400 font-mono text-[11px] p-2 rounded bg-red-950/40 border border-red-900/50">{formError}</div>}
+              <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Incident Title"
+                className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 outline-none" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={severity} onChange={e => setSeverity(e.target.value)} className="bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200">
+                  <option value="P1">P1 (Outage)</option><option value="P2">P2 (Degraded)</option><option value="P3">P3 (Minor)</option>
+                </select>
+                <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200">
+                  <option value="1">auth-service</option><option value="2">payment-gateway</option><option value="3">order-processor</option>
+                </select>
+              </div>
+              <textarea required rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder="Error Telemetry Message..."
+                className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 font-mono text-[11px] outline-none" />
+              <textarea rows={2} value={stackTrace} onChange={e => setStackTrace(e.target.value)} placeholder="Stack Trace (Optional)..."
+                className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 font-mono text-[11px] outline-none" />
+              <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded text-white font-bold transition">
+                {submitting ? 'Creating Incident...' : 'Declare Incident'}
+              </button>
+            </form>
+          ) : (
+            <div className="p-4 rounded-lg bg-[#121215] border border-zinc-800 space-y-2">
+              <div className="font-bold text-zinc-200 font-mono">DECLARE NEW INCIDENT</div>
+              <div className="p-3 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[11px]">
+                Incident declaration is restricted to Engineers and Administrators. Your account has read-only VIEWER access.
+              </div>
             </div>
-            <textarea required rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder="Error Telemetry Message..."
-              className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 font-mono text-[11px] outline-none" />
-            <textarea rows={2} value={stackTrace} onChange={e => setStackTrace(e.target.value)} placeholder="Stack Trace (Optional)..."
-              className="w-full bg-[#18181b] border border-zinc-800 rounded p-2 text-zinc-200 font-mono text-[11px] outline-none" />
-            <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded text-white font-bold transition">
-              {submitting ? 'Creating Incident...' : 'Declare Incident'}
-            </button>
-          </form>
+          )}
 
           {/* Vector Matches */}
           <div className="p-4 rounded-lg bg-[#121215] border border-zinc-800 space-y-2">
@@ -140,24 +232,69 @@ export default function WarRoomDashboard() {
               ))}
             </div>
           </div>
-          <table className="w-full text-left font-mono text-[11px]">
-            <thead>
-              <tr className="border-b border-zinc-800 text-zinc-500 text-[10px]">
-                <th className="py-1.5">ID</th><th className="py-1.5">SEV</th><th className="py-1.5">STATUS</th><th className="py-1.5">SERVICE</th><th className="py-1.5">ENGINEER</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/60">
-              {list.map(i => (
-                <tr key={i.incident_id} className="hover:bg-zinc-900/40">
-                  <td className="py-2 text-blue-400 font-bold">{i.incident_number}</td>
-                  <td className="py-2"><span className={`px-1 rounded text-[9px] font-bold ${i.severity === 'P1' ? 'bg-red-950 text-red-400' : 'bg-zinc-800 text-zinc-300'}`}>{i.severity}</span></td>
-                  <td className="py-2 text-zinc-400">{i.status}</td>
-                  <td className="py-2 text-zinc-300">{i.service_name}</td>
-                  <td className="py-2 text-zinc-400">{i.assigned_engineer}</td>
+
+          {actionError && (
+            <div className="text-red-400 font-mono text-[11px] p-2 rounded bg-red-950/40 border border-red-900/50">
+              {actionError}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-mono text-[11px]">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-500 text-[10px]">
+                  <th className="py-1.5 pr-2">ID</th>
+                  <th className="py-1.5 pr-2">SEV</th>
+                  <th className="py-1.5 pr-2">STATUS</th>
+                  <th className="py-1.5 pr-2">SERVICE</th>
+                  <th className="py-1.5 pr-2">ENGINEER</th>
+                  {canDelete && <th className="py-1.5 text-right">ACTION</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60">
+                {list.map(i => (
+                  <tr key={i.incident_id} className="hover:bg-zinc-900/40">
+                    <td className="py-2 pr-2 text-blue-400 font-bold whitespace-nowrap">{i.incident_number}</td>
+                    <td className="py-2 pr-2 whitespace-nowrap">
+                      <span className={`px-1 rounded text-[9px] font-bold ${i.severity === 'P1' ? 'bg-red-950 text-red-400' : 'bg-zinc-800 text-zinc-300'}`}>
+                        {i.severity}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-2 whitespace-nowrap">
+                      {canUpdateStatus ? (
+                        <select
+                          value={i.status}
+                          disabled={statusUpdatingId === i.incident_id}
+                          onChange={(e) => handleStatusChange(i.incident_id, e.target.value)}
+                          className="bg-[#18181b] border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-200 text-[10px] outline-none disabled:opacity-50"
+                        >
+                          <option value="OPEN">OPEN</option>
+                          <option value="INVESTIGATING">INVESTIGATING</option>
+                          <option value="RESOLVED">RESOLVED</option>
+                          <option value="CLOSED">CLOSED</option>
+                        </select>
+                      ) : (
+                        <span className="text-zinc-400">{i.status}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-2 text-zinc-300 whitespace-nowrap">{i.service_name}</td>
+                    <td className="py-2 pr-2 text-zinc-400 whitespace-nowrap">{i.assigned_engineer}</td>
+                    {canDelete && (
+                      <td className="py-2 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => handleDelete(i.incident_id, i.incident_number)}
+                          disabled={deletingId === i.incident_id}
+                          className="px-2 py-0.5 rounded bg-red-950/60 hover:bg-red-900/80 text-red-400 border border-red-800/60 transition text-[10px] disabled:opacity-50"
+                        >
+                          {deletingId === i.incident_id ? '...' : 'Delete'}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

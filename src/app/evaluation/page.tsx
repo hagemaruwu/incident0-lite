@@ -14,17 +14,47 @@ export default function EvaluationLab() {
   const [activeKey, setActiveKey] = useState('MULTI_JOIN');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
 
   async function runQuery(key: string) {
     setActiveKey(key);
     setLoading(true);
-    const res = await fetch(`/api/evaluation?key=${key}`);
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/evaluation?key=${key}`);
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      const json = await res.json();
+      setData(json);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { runQuery('MULTI_JOIN'); }, []);
+  useEffect(() => {
+    async function checkAuthAndLoad() {
+      try {
+        const meRes = await fetch('/api/auth/me');
+        if (meRes.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        await runQuery('MULTI_JOIN');
+      } finally {
+        setAuthChecking(false);
+      }
+    }
+    checkAuthAndLoad();
+  }, []);
+
+  if (authChecking) {
+    return (
+      <div className="py-24 text-center font-mono text-zinc-500 text-xs">
+        Checking authentication...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 text-xs">
