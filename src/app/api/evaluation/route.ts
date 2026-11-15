@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { generateEmbedding } from '@/lib/embedder';
+import { requireRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,11 @@ const QUERIES: Record<string, { title: string; rubric: string; sql: string; para
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = requireRole(req, ['ADMIN', 'ENGINEER', 'VIEWER']);
+    if (auth instanceof NextResponse) {
+      return auth;
+    }
+
     const key = req.nextUrl.searchParams.get('key') || 'MULTI_JOIN';
     if (!Object.prototype.hasOwnProperty.call(QUERIES, key)) {
       return NextResponse.json({ error: 'Unknown query' }, { status: 400 });

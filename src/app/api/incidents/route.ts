@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { generateEmbedding } from '@/lib/embedder';
+import { requireRole } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = requireRole(req, ['ADMIN', 'ENGINEER', 'VIEWER']);
+    if (auth instanceof NextResponse) {
+      return auth;
+    }
+
     const correlateText = req.nextUrl.searchParams.get('correlate');
     if (correlateText?.trim()) {
       const vec = generateEmbedding(correlateText);
@@ -31,8 +37,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, description = '', severity = 'P2', service_id = 1, assigned_to = 1, message, stack_trace = '' } = await req.json();
+    const auth = requireRole(req, ['ADMIN', 'ENGINEER']);
+    if (auth instanceof NextResponse) {
+      return auth;
+    }
+
+    const { title, description = '', severity = 'P2', service_id = 1, message, stack_trace = '' } = await req.json();
     if (!title || !message) return NextResponse.json({ error: 'Title and message required' }, { status: 400 });
+
+    // Ignore client assigned_to; enforce logged-in user's user_id
+    const assigned_to = auth.user_id;
 
     const embedding = generateEmbedding(`${message} ${stack_trace}`);
     const res = await query(`SELECT * FROM sp_create_incident($1, $2, $3, $4, $5, $6, $7, $8::vector);`, [
