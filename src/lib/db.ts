@@ -1,29 +1,45 @@
 import { Pool, PoolConfig } from 'pg';
 
-const poolConfig: PoolConfig = {
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password123@localhost:5432/incidentzero_lite',
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-};
-
 declare global {
   var _pgLitePool: Pool | undefined;
 }
 
-export const pool = globalThis._pgLitePool || new Pool(poolConfig);
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis._pgLitePool = pool;
+function getPool(): Pool {
+  if (globalThis._pgLitePool) {
+    return globalThis._pgLitePool;
+  }
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not set. Copy .env.example to .env.local.');
+  }
+  const poolConfig: PoolConfig = {
+    connectionString,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  };
+  const p = new Pool(poolConfig);
+  p.on('error', (err) => {
+    console.error('[pg.Pool] Unexpected idle client error:', err.message);
+  });
+  if (process.env.NODE_ENV !== 'production') {
+    globalThis._pgLitePool = p;
+  }
+  return p;
 }
 
-pool.on('error', (err) => {
-  console.error('[pg.Pool] Unexpected idle client error:', err.message);
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    const instance = getPool();
+    const val = (instance as any)[prop];
+    return typeof val === 'function' ? val.bind(instance) : val;
+  },
 });
 
 export async function query<T = any>(text: string, params?: any[]) {
+  const p = getPool();
   const start = Date.now();
-  const res = await pool.query(text, params);
+  const res = await p.query(text, params);
   const duration = Date.now() - start;
   return {
     rows: res.rows as T[],

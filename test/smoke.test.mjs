@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:password123@localhost:5432/incidentzero_lite';
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not set. Copy .env.example to .env.local.');
+}
 
 test('IncidentZero Lite: Smoke Test Suite', async (t) => {
   const pool = new pg.Pool({ connectionString });
