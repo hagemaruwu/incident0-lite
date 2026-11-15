@@ -2,7 +2,7 @@
 
 > **DBMS Experiential Learning — Level 3 Capstone Project**  
 > **Course:** Database Management Systems (UE23CS351A), Department of CSE, PES University  
-> **Faculty Guide:** Dr. Nagasundari S  
+> **Faculty Guide:** Dr. Deena Hijam 
 > **Team:**  
 > - **Aditya Raj** (PES2UG24CS033) — Database Core Architecture, Stored Procedures & REST API  
 > - **Alakh Gupta** (PES2UG24CS051) — Database Triggers, pgvector HNSW Indexing, Relational Views & UI  
@@ -15,7 +15,7 @@ IncidentZero Lite is an enterprise Site Reliability Engineering (SRE) incident r
 
 ```
                            ┌───────────────────────────────┐
-                           │   Next.js 16 Web Interface   │
+                           │   Next.js 16 Web Interface    │
                            │  (War Room, Evaluation Lab)   │
                            └───────────────┬───────────────┘
                                            │ Parameterized SQL ($1..$n)
